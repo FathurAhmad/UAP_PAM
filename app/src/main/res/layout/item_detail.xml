@@ -26,6 +26,14 @@
             android:elevation="10dp"/>
 
         <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Nama Tanaman :"
+            android:textStyle="bold"
+            android:layout_marginTop="15dp"
+            android:layout_marginHorizontal="30dp"/>
+
+        <TextView
             android:id="@+id/tvNama"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -35,8 +43,15 @@
             android:elevation="10dp"
             android:layout_marginTop="20dp"
             android:textStyle="bold"
-            android:textAlignment="center"
             android:text="Daun Hijau"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Harga :"
+            android:textStyle="bold"
+            android:layout_marginTop="15dp"
+            android:layout_marginHorizontal="30dp"/>
 
         <TextView
             android:id="@+id/tvHarga"
@@ -48,8 +63,16 @@
             android:padding="15dp"
             android:layout_marginTop="20dp"
             android:textStyle="bold"
-            android:textAlignment="center"
             android:text="Daun Hijau"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Deskripsi :"
+            android:textStyle="bold"
+            android:layout_marginTop="15dp"
+            android:layout_marginHorizontal="30dp"/>
+
 
         <TextView
             android:id="@+id/tvDeskripsi"
@@ -61,7 +84,6 @@
             android:padding="15dp"
             android:layout_marginTop="20dp"
             android:textStyle="bold"
-            android:textAlignment="inherit"
             android:text="Tanaman ini berasal dari negara x, merupakan tanaman langka"/>
     </LinearLayout>
 

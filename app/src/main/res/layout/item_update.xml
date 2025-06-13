@@ -52,6 +52,7 @@
             android:layout_height="wrap_content"
             android:background="@drawable/container"
             android:padding="15dp"
+            android:inputType="number"
             android:layout_marginHorizontal="30dp"
             android:layout_marginTop="10dp"
             android:hint="Masukkan harga"/>

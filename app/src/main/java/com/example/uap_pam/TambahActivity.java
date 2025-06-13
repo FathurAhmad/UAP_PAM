@@ -7,20 +7,21 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class TambahActivity extends AppCompatActivity {
 
     private EditText etNama, etHarga, etDeskripsi;
     private Button btnTambah;
+    private ApiService apiService;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.item_tambah);
+        apiService = ApiClient.getClient().create(ApiService.class);
 
         etNama = findViewById(R.id.etNama);
         etHarga = findViewById(R.id.etHarga);
@@ -32,36 +33,41 @@ public class TambahActivity extends AppCompatActivity {
             String hargaStr = etHarga.getText().toString().trim();
             String deskripsi = etDeskripsi.getText().toString().trim();
 
-            if (nama.isEmpty() || hargaStr.isEmpty() || deskripsi.isEmpty()) {
-                Toast.makeText(this, "Isi semua kolom!", Toast.LENGTH_SHORT).show();
+            // Validasi input
+            if (nama.isEmpty()) {
+                Toast.makeText(this, "Nama tanaman tidak boleh kosong", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            int harga = Integer.parseInt(hargaStr);
-            simpanTanaman(nama, harga, deskripsi);
+            if (hargaStr.isEmpty()) {
+                Toast.makeText(this, "Harga tidak boleh kosong", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            if (deskripsi.isEmpty()) {
+                Toast.makeText(this, "Deskripsi tidak boleh kosong", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // Membuat TanamanRequest sesuai dengan ApiService
+            TanamanRequest request = new TanamanRequest(nama, deskripsi, hargaStr);
+
+            apiService.createPlant(request).enqueue(new Callback<Void>() {
+                @Override
+                public void onResponse(Call<Void> call, Response<Void> response) {
+                    if (response.isSuccessful()) {
+                        Toast.makeText(TambahActivity.this, "Tanaman berhasil ditambahkan", Toast.LENGTH_SHORT).show();
+                        finish(); // Kembali ke dashboard
+                    } else {
+                        Toast.makeText(TambahActivity.this, "Gagal menambahkan tanaman. Kode: " + response.code(), Toast.LENGTH_SHORT).show();
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<Void> call, Throwable t) {
+                    Toast.makeText(TambahActivity.this, "Koneksi gagal: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                }
+            });
         });
-    }
-
-    private void simpanTanaman(String nama, int harga, String deskripsi) {
-        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
-        if (user == null) {
-            Toast.makeText(this, "User belum login", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        String userId = user.getUid();
-        DatabaseReference dbRef = FirebaseDatabase.getInstance()
-                .getReference("users").child(userId).child("tanaman");
-
-        String id = dbRef.push().getKey();
-        Tanaman tanaman = new Tanaman(id, nama, harga, deskripsi);
-
-        dbRef.child(id).setValue(tanaman)
-                .addOnSuccessListener(aVoid -> {
-                    Toast.makeText(this, "Data berhasil disimpan", Toast.LENGTH_SHORT).show();
-                    finish(); // kembali ke halaman sebelumnya
-                })
-                .addOnFailureListener(e ->
-                        Toast.makeText(this, "Gagal simpan: " + e.getMessage(), Toast.LENGTH_SHORT).show());
     }
 }

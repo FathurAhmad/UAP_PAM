@@ -2,157 +2,193 @@ package com.example.uap_pam;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.view.LayoutInflater;
-import android.view.View;
+import android.util.Log;
 import android.widget.Button;
-import android.widget.EditText;
-import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.activity.EdgeToEdge;
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.database.DataSnapshot;
-import com.google.firebase.database.DatabaseError;
-import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
-import com.google.firebase.database.ValueEventListener;
-
 import java.util.ArrayList;
 import java.util.List;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class DashboardActivity extends AppCompatActivity {
     private RecyclerView recyclerView;
     private List<Tanaman> tanamanList;
     private TanamanAdapter adapter;
     private Button btnTambah;
-    private EditText etNama, etHarga, etDeskripsi;
-    private DatabaseReference databaseRef;
-    private String uid;
+    private ApiService apiService;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_dashboard);
 
+        apiService = ApiClient.getClient().create(ApiService.class);
+
         recyclerView = findViewById(R.id.rvItem);
+        tanamanList = new ArrayList<>();
+
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
-        uid = FirebaseAuth.getInstance().getCurrentUser().getUid();
-        databaseRef = FirebaseDatabase.getInstance().getReference("tanaman").child(uid);
-
         btnTambah = findViewById(R.id.btnTambah);
-
         btnTambah.setOnClickListener(v -> {
             Intent intent = new Intent(DashboardActivity.this, TambahActivity.class);
             startActivity(intent);
         });
 
-        tanamanList = new ArrayList<>();
-        adapter = new TanamanAdapter(tanamanList, new TanamanAdapter.TanamanListener() {
-            @Override
-            public void onEdit(Tanaman tanaman) {
-                showEditDialog(tanaman);
-            }
-
-            @Override
-            public void onDelete(String id) {
-                databaseRef.child(id).removeValue()
-                        .addOnSuccessListener(aVoid -> Toast.makeText(DashboardActivity.this, "Tanaman dihapus", Toast.LENGTH_SHORT).show())
-                        .addOnFailureListener(e -> Toast.makeText(DashboardActivity.this, "Gagal menghapus", Toast.LENGTH_SHORT).show());
-            }
-
-            @Override
-            public void onDetail(Tanaman tanaman) {
-                Intent intent = new Intent(DashboardActivity.this, DetailActivity.class);
-                intent.putExtra("id", tanaman.getId());
-                intent.putExtra("nama", tanaman.getNama());
-                intent.putExtra("harga", tanaman.getHarga());
-                intent.putExtra("deskripsi", tanaman.getDeskripsi());
-                startActivity(intent);
-            }
-        });
-
-
+        adapter = new TanamanAdapter(tanamanList, this);
         recyclerView.setAdapter(adapter);
+
+        loadData();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
         loadData();
     }
 
     private void loadData() {
-        databaseRef.addValueEventListener(new ValueEventListener() {
+        Log.d("DashboardActivity", "Starting API call to: " + ApiClient.getClient().baseUrl() + "plant/all");
+
+        // Menggunakan TanamanResponse sesuai dengan ApiService
+        apiService.getAllPlants().enqueue(new Callback<TanamanResponse>() {
             @Override
-            public void onDataChange(@NonNull DataSnapshot snapshot) {
-                tanamanList.clear();
-                for (DataSnapshot ds : snapshot.getChildren()) {
-                    Tanaman tanaman = ds.getValue(Tanaman.class);
-                    tanamanList.add(tanaman);
+            public void onResponse(Call<TanamanResponse> call, Response<TanamanResponse> response) {
+                Log.d("DashboardActivity", "=== API RESPONSE DEBUG ===");
+                Log.d("DashboardActivity", "Response code: " + response.code());
+                Log.d("DashboardActivity", "Response message: " + response.message());
+
+                if (response.isSuccessful() && response.body() != null) {
+                    TanamanResponse tanamanResponse = response.body();
+                    List<Tanaman> dataList = tanamanResponse.getData();
+
+                    Log.d("DashboardActivity", "Response message: " + tanamanResponse.getMessage());
+                    Log.d("DashboardActivity", "Data list: " + (dataList != null ? "not null" : "null"));
+
+                    if (dataList != null) {
+                        Log.d("DashboardActivity", "Data size: " + dataList.size());
+
+                        tanamanList.clear();
+                        tanamanList.addAll(dataList);
+
+                        // Debug setiap item
+                        for (int i = 0; i < tanamanList.size(); i++) {
+                            Tanaman t = tanamanList.get(i);
+                            if (t != null) {
+                                Log.d("DashboardActivity", "Item " + i + ":");
+                                Log.d("DashboardActivity", "  Nama: " + t.getPlant_name());
+                                Log.d("DashboardActivity", "  Harga: " + t.getPrice());
+                                Log.d("DashboardActivity", "  Deskripsi: " + t.getDescription());
+                            } else {
+                                Log.d("DashboardActivity", "Item " + i + " is null");
+                            }
+                        }
+
+                        // Update UI di main thread
+                        runOnUiThread(() -> {
+                            adapter.notifyDataSetChanged();
+
+                            if (tanamanList.size() > 0) {
+                                Toast.makeText(DashboardActivity.this,
+                                        "Data berhasil dimuat: " + tanamanList.size() + " item",
+                                        Toast.LENGTH_SHORT).show();
+                            } else {
+                                Toast.makeText(DashboardActivity.this,
+                                        "Data kosong dari server",
+                                        Toast.LENGTH_SHORT).show();
+                            }
+                        });
+                    } else {
+                        Log.e("DashboardActivity", "Data list is null");
+                        runOnUiThread(() -> {
+                            Toast.makeText(DashboardActivity.this,
+                                    "Data dari server kosong",
+                                    Toast.LENGTH_LONG).show();
+                        });
+                    }
+                } else {
+                    Log.e("DashboardActivity", "Response not successful");
+                    Log.e("DashboardActivity", "Error code: " + response.code());
+                    Log.e("DashboardActivity", "Error message: " + response.message());
+
+                    // Log error body jika ada
+                    try {
+                        if (response.errorBody() != null) {
+                            String errorBody = response.errorBody().string();
+                            Log.e("DashboardActivity", "Error body: " + errorBody);
+                        }
+                    } catch (Exception e) {
+                        Log.e("DashboardActivity", "Error reading error body", e);
+                    }
+
+                    runOnUiThread(() -> {
+                        Toast.makeText(DashboardActivity.this,
+                                "Gagal memuat data. Kode error: " + response.code(),
+                                Toast.LENGTH_LONG).show();
+                    });
                 }
-                adapter.notifyDataSetChanged();
             }
 
             @Override
-            public void onCancelled(@NonNull DatabaseError error) {}
+            public void onFailure(Call<TanamanResponse> call, Throwable t) {
+                Log.e("DashboardActivity", "=== API CALL FAILED ===");
+                Log.e("DashboardActivity", "Error message: " + t.getMessage());
+                Log.e("DashboardActivity", "Error class: " + t.getClass().getSimpleName());
+                Log.e("DashboardActivity", "Call URL: " + call.request().url().toString());
+                t.printStackTrace();
+
+                runOnUiThread(() -> {
+                    Toast.makeText(DashboardActivity.this,
+                            "Koneksi gagal: " + t.getMessage(),
+                            Toast.LENGTH_LONG).show();
+                });
+            }
         });
     }
 
-    private void tambahTanaman(String nama, int harga, String deskripsi) {
-        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+    public void hapusTanaman(String name) {
+        Log.d("DashboardActivity", "Attempting to delete: " + name);
 
-        if (user != null) {
-            String userId = user.getUid();
-            DatabaseReference databaseRef = FirebaseDatabase.getInstance()
-                    .getReference("users")
-                    .child(userId)
-                    .child("tanaman");
+        apiService.deletePlant(name).enqueue(new Callback<TanamanSingleResponse>() {
+            @Override
+            public void onResponse(Call<TanamanSingleResponse> call, Response<TanamanSingleResponse> response) {
+                Log.d("DashboardActivity", "Delete response code: " + response.code());
 
-            String id = databaseRef.push().getKey();
+                if (response.isSuccessful() && response.body() != null) {
+                    TanamanSingleResponse singleResponse = response.body();
 
-            Tanaman tanaman = new Tanaman(id, nama, harga, deskripsi);
-            databaseRef.child(id).setValue(tanaman)
-                    .addOnSuccessListener(aVoid -> {
-                        Toast.makeText(this, "Tanaman berhasil ditambahkan", Toast.LENGTH_SHORT).show();
-                    })
-                    .addOnFailureListener(e -> {
-                        Toast.makeText(this, "Gagal menambahkan tanaman: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    if ("success".equals(singleResponse.getMessage())) {
+                        runOnUiThread(() -> {
+                            Toast.makeText(DashboardActivity.this, "Tanaman berhasil dihapus", Toast.LENGTH_SHORT).show();
+                            loadData(); // refresh data
+                        });
+                    } else {
+                        runOnUiThread(() -> {
+                            Toast.makeText(DashboardActivity.this, "Gagal menghapus tanaman", Toast.LENGTH_SHORT).show();
+                        });
+                    }
+                } else {
+                    Log.e("DashboardActivity", "Delete failed. Code: " + response.code());
+                    runOnUiThread(() -> {
+                        Toast.makeText(DashboardActivity.this, "Gagal menghapus. Kode: " + response.code(), Toast.LENGTH_SHORT).show();
                     });
-        }
-    }
+                }
+            }
 
-
-    private void showEditDialog(Tanaman tanaman) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        View view = LayoutInflater.from(this).inflate(R.layout.item_update, null);
-
-        EditText editNama = view.findViewById(R.id.etNama);
-        EditText editHarga = view.findViewById(R.id.etHarga);
-        EditText editDeskripsi = view.findViewById(R.id.etDeskripsi);
-
-        editNama.setText(tanaman.getNama());
-        editHarga.setText(String.valueOf(tanaman.getHarga()));
-        editDeskripsi.setText(tanaman.getDeskripsi());
-
-        builder.setView(view);
-        builder.setTitle("Edit Tanaman");
-        builder.setPositiveButton("Simpan", (dialog, which) -> {
-            String namaBaru = editNama.getText().toString();
-            double hargaBaru = Double.parseDouble(editHarga.getText().toString());
-            String deskripsiBaru = editDeskripsi.getText().toString();
-
-            Tanaman updated = new Tanaman(tanaman.getId(), namaBaru, hargaBaru, deskripsiBaru);
-            databaseRef.child(updated.getId()).setValue(updated)
-                    .addOnSuccessListener(aVoid -> Toast.makeText(this, "Data diperbarui", Toast.LENGTH_SHORT).show())
-                    .addOnFailureListener(e -> Toast.makeText(this, "Gagal update", Toast.LENGTH_SHORT).show());
+            @Override
+            public void onFailure(Call<TanamanSingleResponse> call, Throwable t) {
+                Log.e("DashboardActivity", "Delete network error", t);
+                runOnUiThread(() -> {
+                    Toast.makeText(DashboardActivity.this, "Koneksi gagal saat menghapus: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+            }
         });
-
-        builder.setNegativeButton("Batal", null);
-        builder.show();
     }
 }
-
-
